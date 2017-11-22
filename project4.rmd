@@ -1,0 +1,293 @@
+Financial Contributions to Presidential Campaigns by CA in 2016
+========================================================
+
+> **Tip**: One of the requirements of this project is that your code follows
+good formatting techniques, including limiting your lines to 80 characters or
+less. If you're using RStudio, go into Preferences \> Code \> Display to set up
+a margin line to help you keep track of this guideline!
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk. This
+# prevents the code from displaying in the knitted HTML output. You should set
+# echo=FALSE for all code chunks in your file, unless it makes sense for your
+# report to show the code that generated a particular plot.
+
+# The other parameters for "message" and "warning" should also be set to FALSE
+# for other code chunks once you have verified that each plot comes out as you
+# want it to. This will clean up the flow of your report.
+install.packages('zipcode')
+install.packages('ggmap')
+
+library(ggplot2)
+library(lubridate)
+library(dplyr)
+library(zipcode)
+library(ggmap)
+getwd()
+setwd("D:/Udacity-DAND/project 4")
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+financial <- read.csv('./P00000001-CA.csv')
+summary(financial)
+
+```
+
+> **Tip**:(provide a short
+introduction into the dataset) There are 19 variables and 130,4346 observations in this dataset.
+
+# Univariate Plots Section
+## committee & candidate
+```{r echo=FALSE, Univariate_Plots}
+length(unique(financial$cmte_id)) # 25 unique committees
+length(unique(financial$cand_nm)) # 25 unique candidates
+# how to check committee id and candidate id are related one by one?
+financial$cmte_cand <- paste(financial$cmte_id, financial$cand_nm, sep = '_')
+head(financial$cmte_cand)
+length(unique(financial$cmte_cand)) #25
+# So each candidate has a committee, thus I would focus on the candidate
+
+ggplot(aes(x = cand_nm), data = financial) + geom_bar() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("candidate name") + ylab("contribution times for a candidate") +
+  labs(title = "Financial support times for each candidate in CA, 2016")
+
+
+# This bar chart shows that there were orders of magnitude difference of the financial support times. Two candidates(Clinton, Hillary Rodham and Sanders, Bernard) received financial support for most times. And Hillary Clinton was the top 1 candidate in receiving financial support. Since they are both Democratic, indicating that Democratic is more popular within CA.
+
+# How many candidates are contributed for the general election?
+general_election_subset <- subset(financial, election_tp == "G2016")
+length(unique(general_election_subset$cand_nm))
+table(general_election_subset$cand_nm)
+# 16 unique candidates were included in the general_election_subset dataset, but also a few candidates didn't receive financial support at all in this period. Only 7 candidates received financial support in general election in CA.
+
+```
+
+## contributing cities
+```{r echo=FALSE, Univariate_Plots}
+table(financial$contbr_city)
+length(unique(financial$contbr_city)) # 2534 unique contributor cities
+head(sort(table(financial$contbr_city), decreasing = TRUE), 10)
+top_10_contributing_cities_by_times <- financial %>%
+  group_by(contbr_city) %>%
+  summarise(n = n()) %>%
+  filter(rank(desc(n)) <= 10)
+
+# Maybe I should get information about the city's financial level and their rank
+# I want to find the 10 cities with the contribution for 
+# quite many times(here not for money)
+ggplot(aes(x = contbr_city, y = n), 
+       data = top_10_contributing_cities_by_times) +
+  geom_histogram(stat = "identity") +
+  xlab("city name") + ylab("contribution times") +
+  labs(title = "Contribution Times for Top 10 Cities ") +
+   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# We can easily figure out that Los Angeles, San Francisco and San Diego are top 3 contributing cities ranked by contribution times.
+
+```
+## occupation
+```{r echo=FALSE, Univariate_Plots}
+table(financial$contbr_occupation)
+top_10_occupation_by_times <- financial %>%
+  group_by(contbr_occupation) %>%
+  summarise(n = n()) %>%
+  filter(rank(desc(n)) <= 10)
+
+str(top_10_occupation_by_times)
+
+ggplot(aes(x = contbr_occupation, y = n), 
+       data = top_10_occupation_by_times) +
+  geom_histogram(stat = "identity") +
+  xlab("occupation names") + ylab("contribution times") +
+  labs(title = "Contribution Times for Top 10 Occupations ") +
+   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#Actually, I'm quite curious why the retired people contributed most.
+
+```
+
+## receipt amount distribution
+```{r echo=FALSE, Univariate_Plots}
+# For CONTRIBUTION RECEIPT AMOUNT, there are many negative values, weird
+# Also, I don't know the unit, I think at least it's thousands..
+negative_contb_subset <- subset(financial, contb_receipt_amt <= 0)
+length(negative_contb_subset) #16366 observations with contribution <= 0??
+str(negative_contb_subset)
+summary(negative_contb_subset)
+
+ggplot(aes(x = contb_receipt_amt), 
+       data = subset(financial, contb_receipt_amt > 0)) + 
+  geom_histogram(bins = 50) + scale_x_log10() +
+  labs(x = "contribution receipt amount",
+       y = "frequency", title = "Financial Contribution Distribution")
+  
+# kind like a normal distribution in log scale
+```
+
+## contribution time distribution
+```{r echo=FALSE, Univariate_Plots}
+# wonder if there is a time contributed much larger than any other time,
+# and it's related to the actual election event
+
+# Here dt is considered as a factor variable, I need to transform it to datatime first
+financial$contb_receipt_dt <- dmy(financial$contb_receipt_dt)
+head(financial$contb_receipt_dt)
+# Second challenge: transform the time variable
+# Why as.Date and strptime don't work as I expected, they only generated NA
+# So I used a package called lubridate, very easy to use
+# Now I can group into month
+length(unique(year(financial$contb_receipt_dt)))
+table(year(financial$contb_receipt_dt))
+# Wow, the contribution even start on 2013, 
+# maybe there will be multiple receipts from same person
+financial$contb_receipt_dt_yr_mo <- strftime(financial$contb_receipt_dt, "%Y%m")
+head(financial$contb_receipt_dt_yr_mo)
+ggplot(aes(x = contb_receipt_dt_yr_mo), data = financial) + 
+  geom_bar() + labs(x = "time", y = "frequency",
+                    title = "Financial Contribution Throuth Time") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# Actually, we can see most contributions were made in 2016. And there are two peaks , one in 201603(during primary election), and the other in 201610 (one month before the general election)
+```
+
+## form type
+```{r echo=FALSE, Univariate_Plots}
+ggplot(aes(x = form_tp), data = financial) + geom_bar() +
+  labs(x = "from type", y = "frequency", title = "Three different form types")
+# SA17A£º individual contributions
+# SA18: transfers from authorized committees, does it mean negative numbers?
+# SA28A: refunds to individuals'
+# Still confused on what's going on here
+```
+
+## election type
+```{r echo=FALSE, Univariate_Plots}
+ggplot(aes(x = election_tp), data = financial) + geom_bar() +
+  labs(x = "election type", y = "frequency", title = "Financial Contributions for Different Election Types")
+
+# Actullay, most contributions were made for primary election and general election.
+```
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+
+The dataset was a collection of financial contributions to presidential campaigns by CA in 2016. It contained 19 variables and 130,4346 observations in this dataset. And most of the variables are factor variables, like contributing city, contributing name and etc. It's not a cross section dataset(snapshot taken at a given time). It recorded every financial contribution during the election process.
+
+### What is/are the main feature(s) of interest in your dataset?
+
+(1) I'm interested to find how was each candidate being supported financially in presidential campign in CA and want to figure out who was the most popular candidate in CA, 2016.
+(2) I'm also interested in using financial support data to predict the proportion of votes in general election in CA£¬ 2016. 
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+??can't understand
+
+### Did you create any new variables from existing variables in the dataset?
+
+### Of the features you investigated, were there any unusual distributions? \
+Did you perform any operations on the data to tidy, adjust, or change the form \
+of the data? If so, why did you do this?
+
+
+# Bivariate Plots Section
+
+> **Tip**: Based on what you saw in the univariate plots, what relationships
+between variables might be interesting to look at in this section? Don't limit
+yourself to relationships between a main output feature and one of the
+supporting variables. Try to look at relationships between supporting variables
+as well.
+
+```{r echo=FALSE, Bivariate_Plots}
+
+```
+
+# Bivariate Analysis
+
+> **Tip**: As before, summarize what you found in your bivariate explorations
+here. Use the questions below to guide your discussion.
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. How did the feature(s) of interest vary with other features in \
+the dataset?
+
+### Did you observe any interesting relationships between the other features \
+(not the main feature(s) of interest)?
+
+### What was the strongest relationship you found?
+
+
+# Multivariate Plots Section
+
+> **Tip**: Now it's time to put everything together. Based on what you found in
+the bivariate plots section, create a few multivariate plots to investigate
+more complex interactions between variables. Make sure that the plots that you
+create here are justified by the plots you explored in the previous section. If
+you plan on creating any mathematical models, this is the section where you
+will do that.
+
+```{r echo=FALSE, Multivariate_Plots}
+
+```
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+### Were there any interesting or surprising interactions between features?
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the \
+strengths and limitations of your model.
+
+------
+
+# Final Plots and Summary
+
+> **Tip**: You've done a lot of exploration and have built up an understanding
+of the structure of and relationships between the variables in your dataset.
+Here, you will select three plots from all of your previous exploration to
+present here as a summary of some of your most interesting findings. Make sure
+that you have refined your selected plots for good titling, axis labels (with
+units), and good aesthetic choices (e.g. color, transparency). After each plot,
+make sure you justify why you chose each plot by describing what it shows.
+
+### Plot One
+```{r echo=FALSE, Plot_One}
+
+```
+
+### Description One
+
+
+### Plot Two
+```{r echo=FALSE, Plot_Two}
+
+```
+
+### Description Two
+
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+
+```
+
+### Description Three
+
+------
+
+# Reflection
+
+> **Tip**: Here's the final step! Reflect on the exploration you performed and
+the insights you found. What were some of the struggles that you went through?
+What went well? What was surprising? Make sure you include an insight into
+future work that could be done with the dataset.
+
+> **Tip**: Don't forget to remove this, and the other **Tip** sections before
+saving your final work and knitting the final report!
