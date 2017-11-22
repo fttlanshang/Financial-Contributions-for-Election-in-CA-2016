@@ -1,3 +1,6 @@
+#install.packages('zipcode', repos = "http://cran.us.r-project.org")
+#install.packages('ggmap', repos = "http://cran.us.r-project.org")
+
 getwd()
 # setwd('../Desktop/project 4/')
 setwd('D:/Udacity-DAND/project 4/')

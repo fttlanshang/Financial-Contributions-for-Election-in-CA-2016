@@ -18,8 +18,6 @@ a margin line to help you keep track of this guideline!
 # The other parameters for "message" and "warning" should also be set to FALSE
 # for other code chunks once you have verified that each plot comes out as you
 # want it to. This will clean up the flow of your report.
-install.packages('zipcode')
-install.packages('ggmap')
 
 library(ggplot2)
 library(lubridate)
@@ -31,10 +29,7 @@ setwd("D:/Udacity-DAND/project 4")
 ```
 
 ```{r echo=FALSE, Load_the_Data}
-# Load the Data
 original_financial <- read.csv('./P00000001-CA.csv')
-summary(financial)
-
 ```
 
 The dataset was a collection of financial contributions to presidential campaigns by CA in 2016. It contained 19 variables and 130,4346 observations in this dataset. And most variables are factor variables. 
@@ -45,10 +40,8 @@ The dataset was a collection of financial contributions to presidential campaign
 ```{r echo=FALSE, Univariate_Plots}
 # For CONTRIBUTION RECEIPT AMOUNT, there are many negative values, weird
 # Also, I don't know the unit, I think at least it's thousands..
-negative_contb_subset <- subset(financial, contb_receipt_amt <= 0)
+negative_contb_subset <- subset(original_financial, contb_receipt_amt <= 0)
 length(negative_contb_subset) #16366 observations with contribution <= 0??
-str(negative_contb_subset)
-summary(negative_contb_subset)
 
 financial <- subset(original_financial, contb_receipt_amt > 0)
 
@@ -61,12 +54,11 @@ ggplot(aes(x = contb_receipt_amt), data = financial) +
 ```
 
 ## committee & candidate
-```{r echo=FALSE, Univariate_Plots}
+```{r echo=FALSE}
 length(unique(financial$cmte_id)) # 25 unique committees
 length(unique(financial$cand_nm)) # 25 unique candidates
 # how to check committee id and candidate id are related one by one?
 financial$cmte_cand <- paste(financial$cmte_id, financial$cand_nm, sep = '_')
-head(financial$cmte_cand)
 length(unique(financial$cmte_cand)) #25
 # So each candidate has a committee, thus I would focus on the candidate
 
@@ -81,16 +73,14 @@ ggplot(aes(x = cand_nm), data = financial) + geom_bar() +
 # How many candidates are contributed for the general election?
 general_election_subset <- subset(financial, election_tp == "G2016")
 length(unique(general_election_subset$cand_nm))
-table(general_election_subset$cand_nm)
 # 16 unique candidates were included in the general_election_subset dataset, but also a few candidates didn't receive financial support at all in this period. Only 7 candidates received financial support in general election in CA.
 
 ```
 
 ## contributing cities
-```{r echo=FALSE, Univariate_Plots}
-table(financial$contbr_city)
+```{r echo=FALSE}
 length(unique(financial$contbr_city)) # 2517 unique contributor cities
-head(sort(table(financial$contbr_city), decreasing = TRUE), 10)
+# head(sort(table(financial$contbr_city), decreasing = TRUE), 10)
 top_10_contributing_cities_by_times <- financial %>%
   group_by(contbr_city) %>%
   summarise(n = n()) %>%
@@ -109,14 +99,14 @@ ggplot(aes(x = contbr_city, y = n),
 
 ```
 ## occupation
-```{r echo=FALSE, Univariate_Plots}
-table(financial$contbr_occupation)
+```{r echo=FALSE}
+# table(financial$contbr_occupation)
 top_10_occupation_by_times <- financial %>%
   group_by(contbr_occupation) %>%
   summarise(n = n()) %>%
   filter(rank(desc(n)) <= 10)
 
-str(top_10_occupation_by_times)
+# str(top_10_occupation_by_times)
 
 ggplot(aes(x = contbr_occupation, y = n), 
        data = top_10_occupation_by_times) +
@@ -131,23 +121,23 @@ ggplot(aes(x = contbr_occupation, y = n),
 
 
 ## contribution time distribution
-```{r echo=FALSE, Univariate_Plots}
+```{r echo=FALSE}
 # wonder if there is a time contributed much larger than any other time,
 # and it's related to the actual election event
 
 # Here dt is considered as a factor variable, I need to transform it to datatime first
 financial$contb_receipt_dt <- dmy(financial$contb_receipt_dt)
-head(financial$contb_receipt_dt)
+# head(financial$contb_receipt_dt)
 # Second challenge: transform the time variable
 # Why as.Date and strptime don't work as I expected, they only generated NA
 # So I used a package called lubridate, very easy to use
 # Now I can group into month
-length(unique(year(financial$contb_receipt_dt)))
-table(year(financial$contb_receipt_dt))
+# length(unique(year(financial$contb_receipt_dt)))
+# table(year(financial$contb_receipt_dt))
 # Wow, the contribution even start on 2013, 
 # maybe there will be multiple receipts from same person
 financial$contb_receipt_dt_yr_mo <- strftime(financial$contb_receipt_dt, "%Y%m")
-head(financial$contb_receipt_dt_yr_mo)
+# head(financial$contb_receipt_dt_yr_mo)
 ggplot(aes(x = contb_receipt_dt_yr_mo), data = financial) + 
   geom_bar() + labs(x = "time", y = "frequency",
                     title = "Financial Contribution Throuth Time") +
@@ -157,17 +147,35 @@ ggplot(aes(x = contb_receipt_dt_yr_mo), data = financial) +
 ```
 
 ## form type
-```{r echo=FALSE, Univariate_Plots}
+```{r echo=FALSE}
 ggplot(aes(x = form_tp), data = financial) + geom_bar() +
   labs(x = "from type", y = "frequency", title = "Three different form types")
 # SA17A£º individual contributions
 # SA18: transfers from authorized committees, does it mean negative numbers?
 # SA28A: refunds to individuals'
 # Still confused on what's going on here
-```
+`
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+Modify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current Chunk
+Show in New WindowClear OutputExpand/Collapse Output
+Modify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current Chunk
+Show in New WindowClear OutputExpand/Collapse Output
+Modify Chunk OptionsRun All Chunks AboveRun Current Chunk
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+``
 
 ## election type
-```{r echo=FALSE, Univariate_Plots}
+```{r echo=FALSE}
 ggplot(aes(x = election_tp), data = financial) + geom_bar() +
   labs(x = "election type", y = "frequency", title = "Financial Contributions for Different Election Types")
 
@@ -217,39 +225,42 @@ of the data? If so, why did you do this?
 # Bivariate Plots Section
 
 ### candidate & receipt amount
-```{r echo=FALSE, Bivariate_Plots}
+When doing the univariate visualizations and analysis, the y axis for bar charts or histograms is the frequency, or contribution times. And since each contribution receipt amount is different, so the contribution amount distributions differ.
 
+From the first plot, we could see that there was orders of magnitude difference for each candidate. So I changed to log10 scale for better understanding. Of all candidates, Clinton, Hillary Rodham received the most total contribution amount.
+
+```{r echo=FALSE, Bivariate_Plots}
 financial.cand_id_amt <- financial %>%
   group_by(cand_nm) %>%
   summarise(total_amt = sum(contb_receipt_amt)) %>%
   arrange(cand_nm)
-head(financial.cand_id_amt)
-str(financial.cand_id_amt)
-ggplot(aes(x = cand_nm, y = total_amt), data = financial.cand_id_amt) +
-  geom_bar(stat = "identity") + scale_y_log10() +
+#head(financial.cand_id_amt)
+#str(financial.cand_id_amt)
+candidate_p1 <- ggplot(aes(x = cand_nm, y = total_amt), data = financial.cand_id_amt) +
+  geom_bar(stat = "identity") +
   labs(x = "candidate name", y = "total amount received",
       title = "Total Financial Support Amount for each candidate") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+candidate_p1
+candidate_p2 <- candidate_p1 + scale_y_log10()
+candidate_p2
 
 # should I use log10 scale here??
 # Who received the most amount?
-financial.cand_id_amt[which.max(financial.cand_id_amt$total_amt),]
+# financial.cand_id_amt[which.max(financial.cand_id_amt$total_amt),]
 # max sum is 93681171 and Clinton, Hillary Rodham receives it
 
 ```
 
 ### city & receipt amount
-```{r echo=FALSE, Bivariate_Plots}
+Since there were more than 2500 cities in this dataset, so I would still explore top 10 cities, but this time with total contribution amount. While considering the total financial support amount, rather than contribution times, San Francisco and Los Angeles were still top 2 cities, while San Diego was close to other cities.
 
+```{r echo=FALSE}
 financial.city_amt <- financial %>%
   group_by(contbr_city) %>%
   summarise(total_amt = sum(contb_receipt_amt)) %>%
   arrange(contbr_city)
 
-financial$contbr_city
-head(financial$contbr_city, 50)
-head(financial.city_amt, 50)
-financial.city_amt
 # Why there are so many invalid city names???
 financial.city_amt[which.max(financial.city_amt$total_amt),]
 # Can I get top 10 contribution cities in CA?
@@ -263,19 +274,36 @@ ggplot(aes(x = contbr_city, y = total_amt ),
       title = "Total Financial Support Amount from Top 10 Cities") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
   
-# While considering the total financial support amount, rather than contribution times, San Francisco and Los Angeles were still top 2 cities, while San Diego was close to other cities.
+```
+### top 10 contribution city & candidate
+Here I only cared about three candidates, Clinton, Hillary Rodham, Sanders, Bernard and Trump, Donald J.
+```{r}
+# Now this is still a bivariate analysis.
+# names(financial)
+# summary(financial$cand_nm)
+top_3_candidates <- c("Clinton, Hillary Rodham", "Sanders, Bernard", "Trump, Donald J.")
 
+# names(top_10_contributing_cities_by_times)
+ggplot(aes(x = contbr_city), data = subset(financial, 
+      contbr_city %in% top_10_contributing_cities_by_times$contbr_city & cand_nm %in% top_3_candidates )) + geom_bar() +
+  facet_wrap(~cand_nm, scales = "free_y") + 
+  labs(x = "city name", y = "frequency",
+      title = "Total Financial Contribution Times from Top 10 Cities") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# While the big cities are still the big cities
 ```
 
 ### contribution time & receipt amount
-```{r echo=FALSE, Bivariate_Plots}
+
+Obviously, 201607-201610 are the most intense periods. While the trend is different from frequency.
+```{r echo=FALSE}
 
 financial.dt_amt <- financial %>%
   group_by(contb_receipt_dt_yr_mo) %>%
   summarise(total_amt = sum(contb_receipt_amt)) %>%
   arrange(contb_receipt_dt_yr_mo)
 
-head(financial.dt_amt)
+# head(financial.dt_amt)
 
 financial.dt_amt[which.max(financial.dt_amt$total_amt),]
 # Which month received most contributions? Is there a cyclic routine?
@@ -286,8 +314,22 @@ ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt ),
   labs(x = "time", y = "total amount received",
       title = "Total Financial Support Amount Through Time") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-# Obviously, 201607-201610 are the most intense periods.
-# While the trend is different from frequency.
+
+```
+
+### Financial Contribution Times for Each Candidate During Different Election Period
+```{r echo=FALSE}
+ggplot(aes(x = cand_nm), data = 
+      subset(financial, election_tp == 'G2016' | election_tp == 'P2016')) + 
+  geom_bar() +
+  facet_wrap(~election_tp, ncol = 2) + 
+  labs(x = "candidate name", y = "frequency",
+      title = "Financial Contribution Times for Each Candidate\n
+      During Different Election Period") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+# We can see that during primary election, more than two candidates were financially supported, which was consistent with the election rule.
+
 ```
 
 # Bivariate Analysis
@@ -296,13 +338,63 @@ ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt ),
 investigation. How did the feature(s) of interest vary with other features in \
 the dataset?
 
+When doing univariate analysis, I explored the frequency(contribution times) of some variables, like contribution city, candidate name. And when doing bivariate analysis, I primarily changed the frequency(contribution times) to contribution receipt amount. And the most conclusions in univariate analysis didn't vary much, but the distribution changed a little. Like
+
 ### Did you observe any interesting relationships between the other features \
 (not the main feature(s) of interest)?
 
 ### What was the strongest relationship you found?
 
+Since there were only one numerical variable(i.e., contribution receipt amount), so scatterplot was not suitable here. Thus no linear or non-linear relationship were found in this dataset. But We could still see that the contribution receipt amount varied as the candidate or contributing city changed.
+
 
 # Multivariate Plots Section
+
+### top 10 contribution city & candidate & contribution amount
+Here I only cared about three candidates, Clinton, Hillary Rodham, Sanders, Bernard and Trump, Donald J. It's very similar to the frequency one.
+```{r}
+# Now this is still a bivariate analysis.
+# names(financial)
+# summary(financial$cand_nm)
+top_3_candidates <- c("Clinton, Hillary Rodham", "Sanders, Bernard", "Trump, Donald J.")
+
+# names(top_10_contributing_cities_by_times)
+# Should I group_by two variables?
+financial.city_cand_amt <- financial %>%
+  group_by(cand_nm, contbr_city) %>%
+  summarise(total_amt = sum(contb_receipt_amt))
+# Do I need to ungroup data??
+
+ggplot(aes(x = contbr_city, y = total_amt), 
+       data = subset(financial.city_cand_amt, 
+      contbr_city %in% top_10_contributing_cities_by_times$contbr_city & cand_nm %in% top_3_candidates)) + 
+  geom_histogram(stat = "identity") +
+  facet_wrap(~cand_nm, scales = "free_y") + 
+  labs(x = "city name", y = "financial contribution amount",
+      title = "Total Financial Support Amount from Top 10 Cities") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# While the big cities are still the big cities
+# I should choose free scale
+```
+
+### eleltion type & total contribution amount & candidate
+```{r echo=FALSE}
+financial.election_tp_cand_amt <- financial %>%
+  group_by(cand_nm, election_tp) %>%
+  summarise(total_amt = sum(contb_receipt_amt))
+
+ggplot(aes(x = cand_nm, y = total_amt), 
+       data = subset(financial.election_tp_cand_amt, 
+      election_tp == 'G2016' | election_tp == 'P2016')) + 
+  geom_histogram(stat = "identity") +
+  facet_wrap(~election_tp, scales = "free_y") + 
+  labs(x = "candidate name", y = "financial contribution amount",
+      title = "Financial Contribution Times for Each Candidate \n During Different Election Period") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+
+```
 
 > **Tip**: Now it's time to put everything together. Based on what you found in
 the bivariate plots section, create a few multivariate plots to investigate
@@ -311,6 +403,7 @@ create here are justified by the plots you explored in the previous section. If
 you plan on creating any mathematical models, this is the section where you
 will do that.
 
+### contribution amount & candidate & time
 ```{r echo=FALSE, Multivariate_Plots}
 ggplot(aes(x = contb_receipt_dt_yr_mo, y = contb_receipt_amt),
        data = financial) + geom_line() +
@@ -319,11 +412,9 @@ ggplot(aes(x = contb_receipt_dt_yr_mo, y = contb_receipt_amt),
       title = "Financial Support Amount Through Time for Each Candidate") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-
-  
-  
 ```
-```{r echo=FALSE, Multivariate_Plots}
+### contribution amount & city & time
+```{r echo=FALSE}
 
 ggplot(aes(x = contb_receipt_dt_yr_mo, y = contb_receipt_amt),
        data = subset(financial, 
@@ -336,25 +427,25 @@ ggplot(aes(x = contb_receipt_dt_yr_mo, y = contb_receipt_amt),
 ```
 ### Map distribution
 Maybe I can group it by candidate, so
-```{r echo=FALSE, Multivariate_Plots}
+```{r echo=FALSE}
 data(zipcode)
 
 financial$modified_contbr_zip <- clean.zipcodes(financial$contbr_zip)
-head(financial$modified_contbr_zip)
+# head(financial$modified_contbr_zip)
 # I need to aggregate the same zipcode together, 
 # I can first aggregate, then merge it with zipcode
 financial.zip_amt <- financial %>%
   group_by(modified_contbr_zip) %>%
   summarise(total_amt = sum(contb_receipt_amt)) %>%
   arrange(modified_contbr_zip)
-str(financial.zip_amt)
+# str(financial.zip_amt)
 
 new_financial <- merge(financial.zip_amt, zipcode, 
                        by.x='modified_contbr_zip',
                        by.y='zip')
-head(new_financial)
-length(unique(new_financial$modified_contbr_zip)) #2128
-table(new_financial$state) 
+# head(new_financial)
+# length(unique(new_financial$modified_contbr_zip)) #2128
+# table(new_financial$state) 
 # Why there are a few contributions mapped to other state?
 # Because they are in different state when they contributed??
 # without map version
@@ -372,22 +463,22 @@ qmplot(longitude, latitude, size = total_amt,
 ```
 ### general election prediction
 ```{r}
-names(financial)
+#names(financial)
 financial_for_general_election <- subset(financial,
           election_tp == 'G2016' & contb_receipt_amt > 0)
 financial_for_general_election_sum <- financial_for_general_election %>%
   group_by(cand_nm) %>%
   summarise(total_amt = sum(contb_receipt_amt),
             n = n())
-head(financial_for_general_election_sum)
-financial_for_general_election_sum
+#head(financial_for_general_election_sum)
+#financial_for_general_election_sum
 
 financial_for_general_election_sum$amt_ratio <- financial_for_general_election_sum$total_amt / sum(financial_for_general_election_sum$total_amt)
 
 financial_for_general_election_sum$times_ratio <- financial_for_general_election_sum$n / sum(financial_for_general_election_sum$n)
 # why above didn't caculate right??
 428362 / sum(financial_for_general_election_sum$n)
-financial_for_general_election_sum
+# financial_for_general_election_sum
 # If we use financial support data for simple predicting, we may get the result that Hillary Clinton would win CA, but the actual ratio(61.73%) was much lower than predicted ones. It may be due to bias(because only rich people would contribute to the candidates and normal people were not considred in this prediction, non-respondents bias)
 ```
 
