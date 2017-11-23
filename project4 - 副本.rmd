@@ -52,10 +52,10 @@ amt_p2
 
 ```
 
-###  Committee & Candidate
+###  committee & candidate
 At first, I didn't know the relationship between committees and candidates. But I found both variables had 25 unique values. So I combined the two variable to form a new one to check whether committee id and candidate id were related one by one. Actually, the answer was yes.
 
-This bar chart shows that there were orders of magnitude difference of the financial support times. Four candidates, i.e., Clinton, Hillary Rodham and Sanders, Bernard and Trump, Donald J. and Cruz, Rafael Edward 'Ted', received financial support for most times. And Hillary Clinton was the top 1 candidate in receiving financial support ranked by count. Also, from the support times, we could tell that Democratic was more popular within CA.
+This bar chart shows that there were orders of magnitude difference of the financial support times. Two candidates(Clinton, Hillary Rodham and Sanders, Bernard) received financial support for most times. And Hillary Clinton was the top 1 candidate in receiving financial support. Since they are both Democratic, indicating that Democratic is more popular within CA.
 
 ```{r echo=FALSE}
 # length(unique(financial$cmte_id)) # 25 unique committees
@@ -70,98 +70,117 @@ ggplot(aes(x = cand_nm), data = financial) + geom_bar() +
   xlab("candidate name") + ylab("count") +
   labs(title = "Financial support times for each candidate in CA, 2016")
 
+# How many candidates are contributed for the general election?
+general_election_subset <- subset(financial, election_tp == "G2016" & contb_receipt_amt > 0)
+table(general_election_subset$cand_nm)
+length(unique(general_election_subset$cand_nm))
+# 16 unique candidates were included in the general_election_subset dataset, but also a few candidates didn't receive financial support at all in this period. Only 7 candidates received financial support in general election in CA.
+
 ```
 
-### Contributing Cities
-Actually, there were 2517 unique cities contributed for the presidential campaign in CA in 2016. Here, I only showed the top 10 contributing cities ranked by count. We can easily figure out that Los Angeles, San Francisco and San Diego were top 3 contributing cities ranked by contribution times.
-
-```{r echo=FALSE, warning=FALSE}
+## contributing cities
+```{r echo=FALSE}
 length(unique(financial$contbr_city)) # 2517 unique contributor cities
-
+# head(sort(table(financial$contbr_city), decreasing = TRUE), 10)
 top_10_contributing_cities_by_times <- financial %>%
   group_by(contbr_city) %>%
   summarise(n = n()) %>%
-  filter(rank(desc(n)) <= 10) %>%
-  transform(contbr_city =reorder(contbr_city, -n))
+  filter(rank(desc(n)) <= 10)
 
+# Maybe I should get information about the city's financial level and their rank
+# I want to find the 10 cities with the contribution for 
+# quite many times(here not for money)
 ggplot(aes(x = contbr_city, y = n), 
        data = top_10_contributing_cities_by_times) +
   geom_histogram(stat = "identity") +
-  xlab("city name") + ylab("count") +
+  xlab("city name") + ylab("contribution times") +
   labs(title = "Contribution Times for Top 10 Cities ") +
    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# We can easily figure out that Los Angeles, San Francisco and San Diego are top 3 contributing cities ranked by contribution times.
 
 ```
-### Occupation
-
-There were even more occupations in this dataset. Like city, I would only plot the top 10 occupations ranked by contribution times.
-
-From the bar chart, I was quite curious why the retired and not employed people contributed most. Maybe because they were old and accumulated much money.
-
-```{r echo=FALSE, warning=FALSE}
-length(unique(financial$contbr_occupation)) #28563
-
+## occupation
+```{r echo=FALSE}
+# table(financial$contbr_occupation)
 top_10_occupation_by_times <- financial %>%
   group_by(contbr_occupation) %>%
   summarise(n = n()) %>%
-  filter(rank(desc(n)) <= 10) %>%
-  transform(contbr_occupation = reorder(contbr_occupation, -n))
+  filter(rank(desc(n)) <= 10)
+
+# str(top_10_occupation_by_times)
 
 ggplot(aes(x = contbr_occupation, y = n), 
        data = top_10_occupation_by_times) +
   geom_histogram(stat = "identity") +
-  xlab("occupation names") + ylab("count") +
+  xlab("occupation names") + ylab("contribution times") +
   labs(title = "Contribution Times for Top 10 Occupations ") +
    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#Actually, I'm quite curious why the retired people contributed most.
 
 ```
 
-### Contribution Time Distribution
 
-Since contribution time was considered as a factor variable, I needed to transform it to datatime first. Here, I simply replaced the variable with Date format. Also, I created another column in this dataset, which only recorded the year and month of the contribution, which was used for later exploration and analysis.
 
-When looking at the summary, we could find that the earliest contribution started on 2013. Actually, we could see from the bar chart that most contributions were made in 2016. And there are two peaks in 2016, one in 201603 (during primary election), and the other in 201610 (one month before the general election).
-
+## contribution time distribution
 ```{r echo=FALSE}
+# wonder if there is a time contributed much larger than any other time,
+# and it's related to the actual election event
 
+# Here dt is considered as a factor variable, I need to transform it to datatime first
 financial$contb_receipt_dt <- dmy(financial$contb_receipt_dt)
-# Now the variable is Date format.
- 
+# head(financial$contb_receipt_dt)
+# Second challenge: transform the time variable
+# Why as.Date and strptime don't work as I expected, they only generated NA
+# So I used a package called lubridate, very easy to use
+# Now I can group into month
+# length(unique(year(financial$contb_receipt_dt)))
+# table(year(financial$contb_receipt_dt))
+# Wow, the contribution even start on 2013, 
+# maybe there will be multiple receipts from same person
 financial$contb_receipt_dt_yr_mo <- strftime(financial$contb_receipt_dt, "%Y%m")
-
+# head(financial$contb_receipt_dt_yr_mo)
 ggplot(aes(x = contb_receipt_dt_yr_mo), data = financial) + 
-  geom_bar() + labs(x = "time", y = "count",
+  geom_bar() + labs(x = "time", y = "frequency",
                     title = "Financial Contribution Throuth Time") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
+# Actually, we can see most contributions were made in 2016. And there are two peaks , one in 201603(during primary election), and the other in 201610 (one month before the general election)
 ```
 
-### Form Type
-
-In the explanation file, there were 3 different form types, individual contributions(SA17A), transfers from authorized committees(SA18) and refunds to individuals(SA28A).
-
-When using whole dataset(containing negative contribution receipt amount), all three types appeared. But when using positive subset(which was used through the exploration), SA28A type disappeared. But actually, I once substracted the negative subset and looked at its summary data, all 3 types were concluded, not only SA28A included.
-
-No longer which dataset to use, individual contributions accounted for a large proportion.
-
+## form type
 ```{r echo=FALSE}
-
-ggplot(aes(x = form_tp), data = original_financial) + geom_bar() +
-  labs(x = "from type", y = "count", title = "Different form types using whole dataset")
-
 ggplot(aes(x = form_tp), data = financial) + geom_bar() +
-  labs(x = "from type", y = "count", title = "Different form types using positive subset")
+  labs(x = "from type", y = "frequency", title = "Three different form types")
+# SA17A£º individual contributions
+# SA18: transfers from authorized committees, does it mean negative numbers?
+# SA28A: refunds to individuals'
+# Still confused on what's going on here
+`
+Show in New WindowClear OutputExpand/Collapse Output
 
-```
+Show in New WindowClear OutputExpand/Collapse Output
+Modify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current Chunk
+Show in New WindowClear OutputExpand/Collapse Output
+Modify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current ChunkModify Chunk OptionsRun All Chunks AboveRun Current Chunk
+Show in New WindowClear OutputExpand/Collapse Output
+Modify Chunk OptionsRun All Chunks AboveRun Current Chunk
+Show in New WindowClear OutputExpand/Collapse Output
 
-### Election Type
-Actullay, most contributions were made for primary election and general election.
+Show in New WindowClear OutputExpand/Collapse Output
 
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+``
+
+## election type
 ```{r echo=FALSE}
-
 ggplot(aes(x = election_tp), data = financial) + geom_bar() +
-  labs(x = "election type", y = "count", title = "Financial Contributions for Different Election Types")
+  labs(x = "election type", y = "frequency", title = "Financial Contributions for Different Election Types")
 
+# Actullay, most contributions were made for primary election and general election.
 ```
 
 # Univariate Analysis
