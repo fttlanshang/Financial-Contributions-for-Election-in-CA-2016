@@ -9,46 +9,91 @@ library(reshape2)
 library(RColorBrewer)
 library(zipcode)
 library(ggmap)
+library(gridExtra)
+library(lazyeval)
 ```
 
 ```{r echo=FALSE, Load_the_Data}
 original_financial <- read.csv('./P00000001-CA.csv')
 ```
 
-The dataset was a collection of financial contributions to presidential campaigns by CA in 2016. 
+The dataset was a collection of financial contributions to presidential 
+campaigns by CA in 2016. 
+
+```{r echo=FALSE, Aggregate_Helper_Functions}
+aggregate_data_by_count <- function(col_name) {
+  after_aggregation <- financial %>%
+    group_by_(col_name) %>%
+    summarise(n = n()) %>%
+    filter(rank(desc(n)) <= 10)
+  return(after_aggregation)
+}
+
+aggregate_data_by_sum <- function(col_name) {
+  after_aggregation <- financial %>%
+    group_by_(col_name) %>%
+    summarise(total_amt = sum(contb_receipt_amt)) %>%
+    arrange_(col_name)
+  return(after_aggregation)
+}
+aggregate_data_by_sum_for_two_columns <- function(col_name1, col_name2) {
+  after_aggregation <- financial %>%
+    group_by_(col_name1, col_name2) %>%
+    summarise(total_amt = sum(contb_receipt_amt))
+  return(after_aggregation)
+}
+```
 
 # Univariate Plots Section
-```{r echo=FALSE}
+```{r echo=FALSE, Data_Summary}
 dim(original_financial)
 str(original_financial)
 summary(original_financial)
 
 ```
-This dataset contained 19 variables and 130,4346 observations. And most variables are factor variables. 
+This dataset contained 19 variables and 130,4346 observations. 
+And most variables are factor variables. 
 
 ### Contribution Receipt Amount Distribution
-From the summary, we could see that there were negative values for contribution receipt amount, which seemed pretty weird for me. So in my whole exploration, I excluded negative records.
+From the summary, we could see that there were negative values for contribution receipt amount, which seemed pretty weird for me. So I removed the rows with negative contribution amount, and used the modified dataset for whole exploration.
 
-Since the contribution receipt amount distribution was highly skewed, so I transformed the long tail data to log scale. And the distribution was kind of like a normal distribution in log scale. And most contributions were around tens or hundreds.
+And it was easy to figure out from the boxplot that for most times, people contributed for less than 100. And there were many outliers, some were pretty big, while some contribution amount were pretty small. I chose to keep these outliers, since they may be correlated with other variables. Maybe a specific candidate received most "outlier" contribution.
+
+Since the contribution receipt amount distribution was highly skewed, so I 
+transformed the long tail data to log scale. And the distribution was kind of 
+like a normal distribution in log scale. And most contributions were around 
+tens or hundreds.
 
 ```{r echo=FALSE, Univariate_Plots}
-# Also, I don't know the unit, I think at least it's thousands..
+# remove the rows with negative contribution amount
 financial <- subset(original_financial, contb_receipt_amt > 0)
+
+#use box plot to find whether there are outliers
+box_plot_amt <- ggplot(aes(x = 1, y = contb_receipt_amt), 
+                       data = financial) + 
+  geom_boxplot() + scale_y_log10(breaks = c(1, 100, 10000)) +
+  labs(y = "contribution receipt amount", title = "boxplot")
+
 
 amt_p1 <- ggplot(aes(x = contb_receipt_amt), data = financial) + 
   geom_histogram(bins = 50)  +
-  labs(x = "contribution receipt amount",
-       y = "count", title = "Financial Contribution Amount Distribution")
+  labs(x = "contribution receipt amount[USD]",
+       y = "count", title = "Financial Contribution Amount")
 amt_p1
-amt_p2 <- amt_p1 + scale_x_log10()
-amt_p2
+amt_p2 <- amt_p1 + scale_x_log10(breaks = c(1, 100, 10000))
+grid.arrange(box_plot_amt,amt_p2, ncol = 2)
 
 ```
 
 ###  Committee & Candidate
-At first, I didn't know the relationship between committees and candidates. But I found both variables had 25 unique values. So I combined the two variable to form a new one to check whether committee id and candidate id were related one by one. Actually, the answer was yes.
+At first, I didn't know the relationship between committees and candidates. But I found both variables had 25 unique values. So I combined the two variables to form a new one to check whether committee id and candidate id were related one by one. Actually, the answer was yes.
 
-This bar chart shows that there were orders of magnitude difference of the financial support times. Four candidates, i.e., Clinton, Hillary Rodham and Sanders, Bernard and Trump, Donald J. and Cruz, Rafael Edward 'Ted', received financial support for most times. And Hillary Clinton was the top 1 candidate in receiving financial support ranked by count. Also, from the support times, we could tell that Democratic was more popular within CA.
+This bar chart shows that there were orders of magnitude difference of the 
+financial support times. Four candidates, i.e., Clinton, Hillary Rodham and 
+Sanders, Bernard and Trump, Donald J. and Cruz, Rafael Edward 'Ted', received 
+financial support for most times. And Hillary Clinton was the top 1 candidate 
+in receiving financial support ranked by count. Also, from the support times,
+we could tell that Democratic was more popular within CA.
 
 ```{r echo=FALSE}
 # length(unique(financial$cmte_id)) # 25 unique committees
@@ -66,16 +111,17 @@ ggplot(aes(x = cand_nm), data = financial) + geom_bar() +
 ```
 
 ### Contributing Cities
-Actually, there were 2517 unique cities contributed for the presidential campaign in CA in 2016. Here, I only showed the top 10 contributing cities ranked by count. We can easily figure out that Los Angeles, San Francisco and San Diego were top 3 contributing cities ranked by contribution times.
+Actually, there were 2517 unique cities contributed for the presidential 
+campaign in CA in 2016. Here, I only showed the top 10 contributing cities 
+ranked by count. We can easily figure out that Los Angeles, San Francisco and 
+San Diego were top 3 contributing cities ranked by contribution times.
 
 ```{r echo=FALSE, warning=FALSE}
 length(unique(financial$contbr_city)) # 2517 unique contributor cities
 
-top_10_contributing_cities_by_times <- financial %>%
-  group_by(contbr_city) %>%
-  summarise(n = n()) %>%
-  filter(rank(desc(n)) <= 10) %>%
-  transform(contbr_city =reorder(contbr_city, -n))
+# use the helper function to aggregate data and acquire top 10 cities
+top_10_contributing_cities_by_times <- aggregate_data_by_count("contbr_city") %>% transform(contbr_city = reorder(contbr_city, -n))
+# how to simplify the transform?
 
 ggplot(aes(x = contbr_city, y = n), 
        data = top_10_contributing_cities_by_times) +
@@ -85,19 +131,20 @@ ggplot(aes(x = contbr_city, y = n),
    theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 ```
+
 ### Occupation
 
-There were even more occupations in this dataset. Like city, I would only plot the top 10 occupations ranked by contribution times.
+There were even more occupations in this dataset. Like city, I would only plot 
+the top 10 occupations ranked by contribution times.
 
-From the bar chart, I was quite curious why the retired and not employed people contributed most. Maybe because they were old and accumulated much money.
+From the bar chart, I was quite curious why the retired and not employed people
+contributed most. Maybe because they were old and accumulated much money.
 
 ```{r echo=FALSE, warning=FALSE}
 length(unique(financial$contbr_occupation)) #28563
 
-top_10_occupation_by_times <- financial %>%
-  group_by(contbr_occupation) %>%
-  summarise(n = n()) %>%
-  filter(rank(desc(n)) <= 10) %>%
+top_10_occupation_by_times <- 
+  aggregate_data_by_count("contbr_occupation") %>%
   transform(contbr_occupation = reorder(contbr_occupation, -n))
 
 ggplot(aes(x = contbr_occupation, y = n), 
@@ -111,9 +158,14 @@ ggplot(aes(x = contbr_occupation, y = n),
 
 ### Contribution Time Distribution
 
-Since contribution time was considered as a factor variable, I needed to transform it to date format first. Here, I simply replaced the variable with Date format. Also, I created another column in this dataset, which only recorded the year and month of the contribution, which was used for later exploration and analysis.
+Since contribution time was considered as a factor variable, I needed to 
+transform it to date format first. Here, I simply replaced the variable with
+Date format. Also, I created another column in this dataset, which only recorded the year and month of the contribution, which was used for later exploration and analysis.
 
-When looking at the summary or plot, we could find that the earliest contribution started on 2013. Actually, we could see from the bar chart that most contributions were made in 2016. And there are two peaks in 2016, one in 201603 (during primary election), and the other in 201610 (one month before the general election).
+When looking at the summary or plot, we could find that the earliest 
+contribution started on 2013. Actually, we could see from the bar chart that 
+most contributions were made in 2016. And there are two peaks in 2016, one in 
+201603 (during primary election), and the other in 201610 (one month before the general election).
 
 ```{r echo=FALSE}
 
@@ -124,36 +176,45 @@ financial$contb_receipt_dt_yr_mo <- strftime(financial$contb_receipt_dt, "%Y%m")
 
 ggplot(aes(x = contb_receipt_dt_yr_mo), data = financial) + 
   geom_bar() + labs(x = "time", y = "count",
-                    title = "Financial Contribution Throuth Time") +
+                    title = "Financial Contribution Through Time") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 ```
 
 ### Form Type
 
-In the explanation file, there were 3 different form types, individual contributions(SA17A), transfers from authorized committees(SA18) and refunds to individuals(SA28A).
+In the explanation file, there were 3 different form types, individual 
+contributions(SA17A), transfers from authorized committees(SA18) and refunds to individuals(SA28A).
 
-When using whole dataset(containing negative contribution receipt amount), all three types appeared. But when using positive subset(which was used through the exploration), SA28A type disappeared. But actually, I once extracted the negative subset and looked at its summary data, all 3 types were concluded, not only SA28A as I expected.
+When using whole dataset(containing negative contribution receipt amount), all 
+three types appeared. But when using positive subset(which was used through the exploration), SA28A type disappeared. But actually, I once extracted the 
+negative subset and looked at its summary data, all 3 types were concluded, not only SA28A as I expected.
 
-No longer which dataset to use, individual contributions accounted for a large proportion.
+No longer which dataset to use, individual contributions accounted for a large
+proportion.
 
 ```{r echo=FALSE}
 
 ggplot(aes(x = form_tp), data = original_financial) + geom_bar() +
-  labs(x = "from type", y = "count", title = "Different form types using whole dataset")
+  labs(x = "from type", y = "count", 
+       title = "Different form types using whole dataset")
 
 ggplot(aes(x = form_tp), data = financial) + geom_bar() +
-  labs(x = "from type", y = "count", title = "Different form types using positive subset")
+  labs(x = "from type", y = "count", 
+       title = "Different form types using positive subset")
+summary(financial$form_tp)
 
 ```
 
 ### Election Type
-Actullay, most contributions were made for primary election and general election.
+Actullay, most contributions were made for primary election and general election. A few records have empty values for this variable and even 7 contributions were made for primary elections in 2020.
 
 ```{r echo=FALSE}
 
 ggplot(aes(x = election_tp), data = financial) + geom_bar() +
-  labs(x = "election type", y = "count", title = "Financial Contributions for Different Election Types")
+  labs(x = "election type", y = "count",
+       title = "Financial Contributions for Different Election Types")
+summary(financial$election_tp)
 
 ```
 
@@ -165,20 +226,34 @@ Most of the variables are factor variables, like contributing city, contributing
 
 ### What is/are the main feature(s) of interest in your dataset?
 
-- The financial contribution amount distribution was kind of a normal distribution in log scale. And most contributions' amounts were between tens to hundreds.
-- There were 25 candidateds being financially supported during the presidential campaign in 2016. The Democratic was well supported compared to the other parties. And Clinton, Hillary Rodham and Sanders, Bernard received top 2 financial contributions ranked by count.
-- There were more than 2500 cities contributed in this presidential campaign in CA in 2016, of which  Los Angeles, San Francisco and San Diego were top 3 contributing cities ranked by contribution times.
-- It was really surprised to find that retired men and not employed people contributed for most times among all occupations.
-- When looking at the total contribution amount for each month, we could figure out that most contributions were made in 2016. And there were two contribution peaks, one in 201603(during primary election), and the other in 201610(one month before the general election).
-- Actullay, most contributions were made for primary election and general election.
+- The financial contribution amount distribution was kind of a normal 
+distribution in log scale. And most contributions' amounts were between tens to hundreds.
+- There were 25 candidateds being financially supported during the presidential campaign in 2016. The Democratic was well supported compared to the other 
+parties. And Clinton, Hillary Rodham and Sanders, Bernard received top 2 
+financial contributions ranked by count.
+- There were more than 2500 cities contributed in this presidential campaign in CA in 2016, of which  Los Angeles, San Francisco and San Diego were top 3 
+contributing cities ranked by contribution times.
+- It was really surprised to find that retired men and not employed people 
+contributed for most times among all occupations.
+- When looking at the total contribution amount for each month, we could 
+figure out that most contributions were made in 2016. And there were two 
+contribution peaks, one in 201603(during primary election), and the other in 
+201610(one month before the general election).
+- Actullay, most contributions were made for primary election and general 
+election.
 - Most contributions came from indivials.
 
 ### Did you create any new variables from existing variables in the dataset?
 There were a few changes I made to the original dataset.
 
-- I changed the format of the contribution date and also creates another column(called `contb_receipt_dt_yr_mo`) representing the year and month of the contribution.
-- I combined the committee id and candidate name to form a new column to check whether committees and candidates were correlated one by one.
-- I created another two variables, i.e., top 10 cities and top 10 occupations ranked by contribution times since there were too many levels for cities and occupations.
+- I changed the format of the contribution date and also creates another column
+(called `contb_receipt_dt_yr_mo`) representing the year and month of the 
+contribution.
+- I combined the committee id and candidate name to form a new column to check 
+whether committees and candidates were correlated one by one.
+- I created another two variables, i.e., top 10 cities and top 10 occupations
+ranked by contribution times since there were too many levels for cities and 
+occupations.
 
 ### Of the features you investigated, were there any unusual distributions? \
 Did you perform any operations on the data to tidy, adjust, or change the form \
@@ -189,27 +264,29 @@ of the data? If so, why did you do this?
 
 # Bivariate Plots Section
 
-When doing the univariate visualizations and analysis, the y axis for bar charts or histograms was count, or contribution times. And since each contribution receipt amount was different, so it was a good idea to explore how total contribution amount varied with some categorical variables. To achieve this, aggregation was needed.
+When doing the univariate visualizations and analysis, the y axis for bar 
+charts or histograms was count, or contribution times. And since each contribution receipt amount was different, so it was a good idea to explore how total contribution amount varied with some categorical variables. To achieve this, aggregation was needed.
 
 ### Candidate & Contribution Receipt Amount
 
 From the first plot, we could see that there was orders of magnitude difference for each candidate. So I changed to log10 scale for better understanding. Of all candidates, Clinton, Hillary Rodham received the most total contribution amount. And for other candidates, I could always find another candidate with similar total contribution amount received.
 
+From the statistics, we could also see that the mean value was much larger than the median and the third quantile, underlying that the outliers pushed the mean value to the right. And the max value, which Clinton received, was hundred times larger than the median value.
+
 ```{r echo=FALSE, Bivariate_Plots}
-financial.cand_id_amt <- financial %>%
-  group_by(cand_nm) %>%
-  summarise(total_amt = sum(contb_receipt_amt)) %>%
-  arrange(cand_nm) %>%
+financial.cand_id_amt <- aggregate_data_by_sum("cand_nm") %>%
   transform(cand_nm = reorder(cand_nm, -total_amt))
 
-candidate_p1 <- ggplot(aes(x = cand_nm, y = total_amt), data = financial.cand_id_amt) +
+candidate_p1 <- ggplot(aes(x = cand_nm, y = total_amt), 
+                       data = financial.cand_id_amt) +
   geom_bar(stat = "identity") +
-  labs(x = "candidate name", y = "total amount received",
+  labs(x = "candidate name", y = "total amount received[USD]",
       title = "Total Financial Support Amount for each candidate") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 candidate_p1
 candidate_p2 <- candidate_p1 + scale_y_log10()
 candidate_p2
+summary(financial.cand_id_amt$total_amt)
 
 ```
 
@@ -217,10 +294,12 @@ candidate_p2
 
 Since there were more than 2500 cities in this dataset, so I would still explore top 10 cities, but this time with total contribution amount. While considering the total financial support amount, rather than contribution times, San Francisco and Los Angeles were still top 2 cities, while the other cities' difference got less.
 
+From the statistics of all contributing cities, we could see that mean value was several times larger than median value. But when looking at the statistics of top 10 contributing cities, the first quantile, median and third quantile values were pretty close, which could be seen from the bar chart as well.
+
 ```{r echo=FALSE}
-top_10_contributing_cities <- financial %>%
-  group_by(contbr_city) %>%
-  summarise(total_amt = sum(contb_receipt_amt)) %>%
+financial.contbr_city_amt <- aggregate_data_by_sum("contbr_city")
+
+top_10_contributing_cities <- financial.contbr_city_amt %>%
   filter(rank(desc(total_amt)) <= 10) %>%
   transform(contbr_city = reorder(contbr_city, -total_amt))
 
@@ -231,6 +310,8 @@ ggplot(aes(x = contbr_city, y = total_amt),
       title = "Total Financial Support Amount from Top 10 Cities") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
   
+summary(financial.contbr_city_amt$total_amt)
+summary(top_10_contributing_cities$total_amt)
 ```
 
 ### top 10 contribution city & candidate
@@ -239,27 +320,26 @@ Here I only cared about three candidates, Clinton, Hillary Rodham, Sanders, Bern
 
 ```{r echo=FALSE}
 
-top_3_candidates <- c("Clinton, Hillary Rodham", "Sanders, Bernard", "Trump, Donald J.")
+top_3_candidates <- c("Clinton, Hillary Rodham", "Sanders, Bernard", 
+                      "Trump, Donald J.")
 
 ggplot(aes(x = contbr_city), data = subset(financial, 
-      contbr_city %in% top_10_contributing_cities_by_times$contbr_city & cand_nm %in% top_3_candidates )) + geom_bar() +
+      contbr_city %in% top_10_contributing_cities_by_times$contbr_city & 
+        cand_nm %in% top_3_candidates )) + geom_bar() +
   facet_wrap(~cand_nm, scales = "free_y") + 
   labs(x = "city name", y = "count",
       title = "Total Financial Contribution Times from Top 10 Cities") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-# Maybe it's a good idea to draw the three plots into one, but that way, I can't change the scale of y.
+# Maybe it's a good idea to draw the three plots into one, but that way, 
+# I can't change the scale of y.
 ```
 
 ### Contribution Time & Contribution Receipt Amount
 
-Obviously, the distribution was qiute different from the one gotten from  univariate plotting. Contributions in 2015 seemed to accounted for a larger proportion. Maybe it was due to large amount per contribution in 2015. Also, 201607-201610 were the most intense periods. 
+Obviously, the distribution was quite different from the one gotten from univariate plotting. Contributions in 2015 seemed to accounted for a larger proportion. Maybe it was due to large amount per contribution in 2015. Also, 201607-201610 were the most intense periods. 
 
 ```{r echo=FALSE}
-
-financial.dt_amt <- financial %>%
-  group_by(contb_receipt_dt_yr_mo) %>%
-  summarise(total_amt = sum(contb_receipt_amt)) %>%
-  arrange(contb_receipt_dt_yr_mo)
+financial.dt_amt <- aggregate_data_by_sum("contb_receipt_dt_yr_mo")
 
 ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt ), 
        data = financial.dt_amt) + 
@@ -272,18 +352,18 @@ ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt ),
 
 ### Candidate & Election Type
 
-We can see that during primary election, more candidates were financially supported, which was consistent with the election rule.
+We can see that during primary election, more candidates were financially supported, which was consistent with the election rule. Even Sanders, Bernard received much contribution during primary election process, but he received 0 for general election.
 
 ```{r echo=FALSE}
 
-ggplot(aes(x = cand_nm), data = 
+ggplot(aes(x = cand_nm, fill = election_tp), data = 
       subset(financial, election_tp == 'P2016' | election_tp == 'G2016')) + 
-  geom_bar() +
-  facet_wrap(~election_tp, ncol = 2) + 
+  geom_bar(position = "dodge") +
   labs(x = "candidate name", y = "count",
-      title = "Financial Contribution Times for Each Candidate\nDuring Different Election Period") +
+      title = "Financial Contribution Times for Each Candidate\
+      During Different Election Period") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-  
+
 ```
 
 # Bivariate Analysis
@@ -297,7 +377,8 @@ the dataset?
 ### Did you observe any interesting relationships between the other features \
 (not the main feature(s) of interest)?
 - Candidates got different "treatment" in different cities which may be due to cities' party perference. For example, contributions from San Diego accounted a large propotion for Trump, while was not true for Clinton and Sander.
-- The election rule affected the actual data. Some candidates didn't stand out from the primary election, then they couldn't compete in general election. Thus only a few candidates receive financial support. Even though Sanders received more contribution than Trump, Clinton won Sanders and she was supported at last.
+- The election rule affected the actual data. Some candidates didn't stand out\
+from the primary election, then they couldn't compete in general election. Thus only a few candidates receive financial support. Even though Sanders received more contribution than Trump, Clinton won Sanders and she was supported at last.
 
 ### What was the strongest relationship you found?
 
@@ -307,43 +388,40 @@ Since there were only one numerical variable(i.e., contribution receipt amount),
 
 ### City & Candidate & Contribution Receipt Amount
 
-It was very similar to the bivariate one talked above, except changing from count to financial receipt amount. So here I still only cared about three candidates, Clinton, Hillary Rodham, Sanders, Bernard and Trump, Donald J. 
+Here I still only cared about three candidates, Clinton, Hillary Rodham, Sanders, Bernard and Trump, Donald J. Also, I only explored the top 10 contributing cities ranked by total contribution amount.
 
-When using the total receipt amount as y axis, the trend for Clinton and Sanders were not similar any more. And Trump also received most contribution amount from Los Angeles. And note, Trump received most contribution times from San Diego.
+I was pretty surprised to find from the boxplot that for almost every top 10 city, the median and third quantile contribution amount for Trump was larger than Clinton and Sanders, which was not consistent with the fact that Clinton and Sanders received much more contribution than Trump. I guessed that maybe that was due to the outliers. The contribution with pretty large amount really counted when calculating total contribution amount.
 
 ```{r echo=FALSE, warning=FALSE}
-
-financial.city_cand_amt <- financial %>%
-  group_by(cand_nm, contbr_city) %>%
-  summarise(total_amt = sum(contb_receipt_amt))
-# Do I need to ungroup data??
-
-ggplot(aes(x = contbr_city, y = total_amt), 
-       data = subset(financial.city_cand_amt, 
-      contbr_city %in% top_10_contributing_cities_by_times$contbr_city & cand_nm %in% top_3_candidates)) + 
-  geom_histogram(stat = "identity") +
-  facet_wrap(~cand_nm, scales = "free_y") + 
+ggplot(aes(x = contbr_city, y = contb_receipt_amt, fill = cand_nm), 
+       data = subset(financial, 
+                     contbr_city %in% top_10_contributing_cities$contbr_city & 
+                       cand_nm %in% top_3_candidates)) + 
+  geom_boxplot(position = "dodge") +
+  coord_cartesian(ylim = c(0, 300)) +
   labs(x = "city name", y = "financial contribution amount",
       title = "Total Financial Support Amount from Top 10 Cities") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# many outliers, so I need to scale the y axis
 ```
 
 ### Election Type & Contribution Amount & Candidate
 
-To better visualization, I transformed y axis to log scale. And I think that the biggest trend didn't change for primary and general election, while the relative position for less supported candidates actually changed.
+To better visualization, I transformed y axis to log scale. We could see that 9 wide blue bars, underlying that they didn't participate in the generation election. I was also surprised to find that McMullin, Evan only received contribution in general election process. While I searched online and found that he didn't launch an independent presidential bid util August, 2016.
 
 ```{r echo=FALSE, warning=FALSE}
+financial.election_tp_cand_amt <-
+  aggregate_data_by_sum_for_two_columns("cand_nm", "election_tp")
 
-financial.election_tp_cand_amt <- financial %>%
-  group_by(cand_nm, election_tp) %>%
-  summarise(total_amt = sum(contb_receipt_amt))
-
-ggplot(aes(x = cand_nm, y = total_amt), 
+ggplot(aes(x = cand_nm, y = total_amt, fill = election_tp), 
        data = subset(financial.election_tp_cand_amt, 
       election_tp == 'G2016' | election_tp == 'P2016')) + 
-  geom_histogram(stat = "identity") + scale_y_log10() +
-  facet_wrap(~election_tp, scales = "free_y") + labs(x = "candidate name", y = "financial contribution amount",
-      title = "Financial Contribution Amount for Each Candidate During Different Election Period") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  geom_histogram(stat = "identity", position="dodge") +
+  scale_y_log10() +
+  labs(x = "candidate name", y = "financial contribution amount",
+      title = "Financial Contribution Amount for Each Candidate During \
+      Different Election Period") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 ```
 
@@ -353,20 +431,33 @@ Since the dataset was not a cross-section one, it was a good idea to look at how
 
 Trend for each candidate varied a lot. Clinton kept "smooth" contribution through the process, while some candidates went up and down, like Cruz, Rafael Edward 'Ted'. 
 
-There were candidates receiving support from a quite early time, like Paul, Rand. While some candidates received financial support from very late period, like McMullin, Evan. I thought this plot contained much information. It was better to explore if I combined the data with the events in reality.
+There were candidates receiving support from a quite early time, like Paul, Rand. While some candidates received financial support from very late period, like McMullin, Evan, which I discussed above. I thought this plot contained much information. It was better to explore if I combined the data with the events in reality.
+
+Since exploring how contribution amount varied for each candidate was too hard to intepret. So I drew another one containing only top 3 candidates. These candidates showed very different trends. Contribution to Clinton kept smooth in some sense, while contributions to Sanders declined sharply in later process, and contributions to Trump went upwards during April, 2016.
 
 ```{r echo=FALSE, Multivariate_Plots}
-financial.cand_dt_amt <- financial %>%
-  group_by(cand_nm, contb_receipt_dt_yr_mo) %>%
-  summarise(total_amt = sum(contb_receipt_amt))
+financial.cand_dt_amt <- 
+  aggregate_data_by_sum_for_two_columns("cand_nm", "contb_receipt_dt_yr_mo")
 
 ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt),
-       data = financial.cand_dt_amt) + geom_point() + scale_y_log10() +
+       data = financial.cand_dt_amt) + geom_line(group = 1) + scale_y_log10() +
   facet_wrap(~cand_nm) + 
   labs(x = "time", y = "contribution receipt amount",
       title = "Financial Support Amount Through Time for Each Candidate") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   scale_x_discrete(breaks = seq(201308, 201612, 4))
+
+contribution_time_top_3_candidates <-
+  ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt, 
+           color = cand_nm, group = cand_nm),
+       data = subset(financial.cand_dt_amt, cand_nm %in% top_3_candidates)) + 
+  geom_line() + scale_y_log10() +
+  labs(x = "time", y = "contribution receipt amount",
+      title = "Financial Support Amount Through Time for Top 3 Candidates") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_x_discrete(breaks = seq(201308, 201612, 2))
+
+contribution_time_top_3_candidates
 
 ```
 
@@ -375,14 +466,14 @@ ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt),
 The contribution trend for each city seemed quite similar. First increase, then keeping smooth, and at last dropped.
 
 ```{r echo=FALSE}
-financial.city_dt_amt <- financial %>%
-  group_by(contb_receipt_dt_yr_mo, contbr_city) %>%
-  summarise(total_amt = sum(contb_receipt_amt))
+financial.city_cand_amt <-
+  aggregate_data_by_sum_for_two_columns(
+    "contb_receipt_dt_yr_mo", "contbr_city")
 
 ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt),
-       data = subset(financial.city_dt_amt, 
+       data = subset(financial.city_cand_amt, 
           contbr_city %in% top_10_contributing_cities$contbr_city)) + 
-  geom_point() + scale_y_log10() +
+  geom_line(group = 1) + scale_y_log10() +
   facet_wrap(~contbr_city) + 
   labs(x = "time", y = "contribution receipt amount",
       title = "Financial Support Amount Through Time from Each City") +
@@ -394,7 +485,7 @@ ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt),
 
 To plot on the map, first, I grouped the contribution amount by zipcode, then, I combined aggregated data with `zipcode`, which was provided by package `zipcode`, to get latitude and longitude. So in this plot, the size of circles represented the total contribution amount during 2016 presidential campaign.
 
-Actually, this plot was not as explicit as the previous ones, because it was a little hard to distinguish between each city. But the advantage of this map was that it showed all cities, not just top 10 cities any more.
+Actually, this plot was not as explicit as the previous ones, because it was a little hard to distinguish between each city. And this plot had problem on overplotting and needed further improvement. But the advantage of this map was that it showed all cities, not just top 10 cities any more.
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
 data(zipcode)
@@ -402,10 +493,7 @@ data(zipcode)
 financial$modified_contbr_zip <- clean.zipcodes(financial$contbr_zip)
 # I need to aggregate the same zipcode together, 
 # I can first aggregate, then merge it with zipcode
-financial.zip_amt <- financial %>%
-  group_by(modified_contbr_zip) %>%
-  summarise(total_amt = sum(contb_receipt_amt)) %>%
-  arrange(modified_contbr_zip)
+financial.zip_amt <- aggregate_data_by_sum("modified_contbr_zip")
 
 new_financial <- merge(financial.zip_amt, zipcode, 
                        by.x='modified_contbr_zip',
@@ -433,14 +521,18 @@ financial_for_g2016_top_2.cand_zip_amt <- financial_for_g2016_top_2 %>%
   summarise(total_cand_amt = sum(contb_receipt_amt))
 
 # I need to transform the long format to wide format?
-financial_for_g2016_top_2.cand_zip_amt.wide <- dcast(financial_for_g2016_top_2.cand_zip_amt, modified_contbr_zip ~ cand_nm, value.var = "total_cand_amt")
+financial_for_g2016_top_2.cand_zip_amt.wide <- 
+  dcast(financial_for_g2016_top_2.cand_zip_amt, modified_contbr_zip ~ cand_nm, 
+        value.var = "total_cand_amt")
 # head(financial_for_g2016_top_2.cand_zip_amt.wide)
 
 financial_for_g2016_top_2.cand_zip_amt.wide$ratio <- financial_for_g2016_top_2.cand_zip_amt.wide$`Clinton, Hillary Rodham` / (financial_for_g2016_top_2.cand_zip_amt.wide$`Clinton, Hillary Rodham` + financial_for_g2016_top_2.cand_zip_amt.wide$`Trump, Donald J.`)
 
-financial_for_g2016_top_2.cand_zip_amt.wide$ratio <- if_else(is.na(financial_for_g2016_top_2.cand_zip_amt.wide$`Clinton, Hillary Rodham`), 0, financial_for_g2016_top_2.cand_zip_amt.wide$ratio)
+financial_for_g2016_top_2.cand_zip_amt.wide$ratio <- if_else(
+  is.na(financial_for_g2016_top_2.cand_zip_amt.wide$`Clinton, Hillary Rodham`), 0, financial_for_g2016_top_2.cand_zip_amt.wide$ratio)
 
-financial_for_g2016_top_2.cand_zip_amt.wide$ratio <- if_else(is.na(financial_for_g2016_top_2.cand_zip_amt.wide$`Trump, Donald J.`), 1, financial_for_g2016_top_2.cand_zip_amt.wide$ratio)
+financial_for_g2016_top_2.cand_zip_amt.wide$ratio <- if_else(
+  is.na(financial_for_g2016_top_2.cand_zip_amt.wide$`Trump, Donald J.`), 1, financial_for_g2016_top_2.cand_zip_amt.wide$ratio)
 
 # head(financial_for_g2016_top_2.cand_zip_amt.wide)
 
@@ -450,9 +542,13 @@ financial_for_g2016_top_2.cand_zip_amt.wide.position <- merge(financial_for_g201
 
 # head(financial_for_g2016_top_2.cand_zip_amt.wide.position)
 
-qmplot(longitude, latitude, color = ratio,
-       data = subset(financial_for_g2016_top_2.cand_zip_amt.wide.position, state == 'CA'), 
-       alpha = 1 / 20) 
+preference_plot <- qmplot(longitude, latitude, color = ratio,
+       data = subset(financial_for_g2016_top_2.cand_zip_amt.wide.position, 
+                     state == 'CA'), 
+       alpha = 1 / 20) + 
+  labs(title = "Preference inferred from financial contribution for \
+       each city in CA, 2016")
+preference_plot
 
 
 ```
@@ -461,7 +557,7 @@ qmplot(longitude, latitude, color = ratio,
 
 Here, I simply used the financial contribution data to predict the general election result. And we may get the result that Hillary Clinton would win CA, but the actual ratio(61.73%) was much lower than predicted one(80.48%).
 
-It may be due to bias. Bbecause only rich people would contribute to the candidates and normal people were not considred in this prediction.
+It may be due to bias. Bbecause only rich people would contribute to the  candidates and normal people were not considred in this prediction.
 
 ```{r echo=FALSE}
 
@@ -473,7 +569,8 @@ financial_for_general_election_sum <- financial_for_general_election %>%
   summarise(total_amt = sum(contb_receipt_amt),
             n = n())
 
-financial_for_general_election_sum$amt_ratio <- financial_for_general_election_sum$total_amt / sum(financial_for_general_election_sum$total_amt)
+financial_for_general_election_sum$amt_ratio <- 
+  financial_for_general_election_sum$total_amt / sum(financial_for_general_election_sum$total_amt)
 
 financial_for_general_election_sum
 
@@ -490,6 +587,7 @@ looking at your feature(s) of interest?
 
 ### Were there any interesting or surprising interactions between features?
 - I think the result was quite surprising when combining candidate and time. In this way, much more information was added in.
+- Also, I was pretty surprised to find that for almost every top 10 city, the median and third quantile contribution amount for Trump was larger than Clinton and Sanders, which was not consistent with the fact that Clinton and Sanders received much more contribution than Trump. I guessed that maybe that was due to the outliers. The contribution with pretty large amount really counted when calculating total contribution amount.
 
 ### OPTIONAL: Did you create any models with your dataset? Discuss the \
 strengths and limitations of your model.
@@ -511,49 +609,42 @@ candidate_p2
 ```
 
 ### Description One
-This plot shows the total contribution amount each candidate received in the presidential election campaign. From this plot, we could easily figure out the most popular candidate in CA, 2016. And we could also figure out the democratic party were more popular than other parties.
+This plot shows the total contribution amount that each candidate received in the presidential election campaign. From this plot, we could easily figure out the most popular candidate in CA, 2016. And when we looked further into this plot, we could also figure out the democratic party were more popular than other parties.
 
 ### Plot Two
 ```{r echo=FALSE, Plot_Two}
-ggplot(aes(x = contb_receipt_dt_yr_mo, y = total_amt),
-       data = financial.cand_dt_amt) + geom_point() + scale_y_log10() +
-  facet_wrap(~cand_nm) + 
-  labs(x = "time", y = "contribution receipt amount",
-      title = "Financial Support Amount Through Time for Each Candidate") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  scale_x_discrete(breaks = seq(201308, 201612, 4))
+contribution_time_top_3_candidates
 
 ```
 
 ### Description Two
-This plot showed the how contribution amount varied with time for each candidate. And I thought this plot was full of information. We could see the ups and downs for a given candidate(especially for the less supported candidates, because Clinton and some other candidates kept similar contributions all the time). And I thought it was consistent with real events.
+This plot showed the how contribution amount varied with time for top 3 popular candidates. We could see the ups and downs for these candidates. Clinton kept similar contributions all the time. Contributions to Sanders declined sharply in later process, and contributions to Trump went upwards after April, 2016.
 
 ### Plot Three
 ```{r echo=FALSE,warning=FALSE, Plot_Three}
-qmplot(longitude, latitude, color = ratio,
-       data = subset(financial_for_g2016_top_2.cand_zip_amt.wide.position, state == 'CA'), 
-       alpha = 1 / 20) 
+preference_plot
 ```
 
 ### Description Three
-This plot showed different cities had different preferences. While ratio 1 meant that the city only contributed to Clinton, and ratio 0 meant the city only contributed to Trump.
+This plot showed different cities had different preferences. While ratio 1  meant that the city only contributed to Clinton, and ratio 0 meant the city only contributed to Trump.
 
 ------
 
 # Reflection
 
-In this dataset, I'm interested to find how financial contribution for each candidate in presidential campign in CA varied and want to figure out who was the most popular candidate in CA, 2016. I'm also interested in using financial support data to predict the proportion of votes in general election in CA£¬2016. I thought I've basically finished my goal.
+In this dataset, I'm interested to find how financial contribution for each candidate in presidential campign in CA varied and want to figure out who was the most popular candidate in CA, 2016. I'm also interested in using financial support data to predict the proportion of votes in general election in CA,2016. I thought I've basically finished my goal.
 
-For univariate analysis, I mainly explored the frequency or contribution times for one categorical variables. And for bivariate analysis, I changed the frequency to actual total contribution amount.  And for multivariate analysis, I plotted how the contribution amount changed through time for a categorical variable. Also, I combined the data with geographic information.
+For univariate analysis, I mainly explored the frequency or contribution times for one categorical variables. And for bivariate analysis, I changed the frequency to actual total contribution amount. And for multivariate analysis, I plotted how the contribution amount changed through time for a categorical variable. Also, I combined the data with geographic information.
 
-There are times that I got confused on frequency and total amount. So, it was a good idea to jump out of the analysis and consider the whole analysis at times.
+There are times that I got confused on frequency and total amount. So, it was a good idea to jump out of the analysis and consider the whole analysis at times. Also, during the exploration process, I've dropped into a trap that I used very few ways to analyze. And the reviewer has pointed it out and suggested that I could use colors instead of `facet_wrap` and use boxplots as well.
 
 What I found interesting or surprising was as follows:
 
 - Different cities had different preferences over candidates.
 - Each candidate went different ups and downs through the election process.
 - I still couldn't understand why retired or not employed people contributed most.
+- The median and mean value for Trump was higher than Clinton.
 
 Before the analysis, I knew little about the election process and was confused by primary election and general election. But going through the exploration process, I gained some knowledge about American election.
 
-For future analysis, to better intepret the data, it would be very important to combine the data with reality. And it's one drawback in my current analysis.
+For future analysis, to better intepret the data, it would be very important to combine the data with reality. And it's one drawback in my current analysis. Also, I should put more effort later to improve the visualization and interpretation of maps.
